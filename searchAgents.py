@@ -279,11 +279,11 @@ class CornersProblem(search.SearchProblem):
         """
         Stores the walls, pacman's starting position and corners.
         """
+        # Did not change anything in the __init__
         self.walls = startingGameState.getWalls()
         self.startingPosition = startingGameState.getPacmanPosition()
         top, right = self.walls.height-2, self.walls.width-2
         self.corners = ((1,1), (1,top), (right, 1), (right, top))
-        self.cornerList = []
         for corner in self.corners:
             if not startingGameState.hasFood(*corner):
                 print('Warning: no food in corner ' + str(corner))
@@ -294,6 +294,7 @@ class CornersProblem(search.SearchProblem):
         Returns the start state (in your state space, not the full Pacman state
         space)
         """
+        # The start state will include a list of found corners
         found = []
         return (self.startingPosition, found)
 
@@ -301,6 +302,7 @@ class CornersProblem(search.SearchProblem):
         """
         Returns whether this search state is a goal state of the problem.
         """
+        # Since there are 4 corners once found has 4 elements, we can stop 
         found = state[1]
         return len(found)==4
 
@@ -308,23 +310,28 @@ class CornersProblem(search.SearchProblem):
         """
         Returns successor states, the actions they require, and a cost of 1.
 
-         As noted in search.py:
-            For a given state, this should return a list of triples, (successor,
-            action, stepCost), where 'successor' is a successor to the current
-            state, 'action' is the action required to get there, and 'stepCost'
-            is the incremental cost of expanding to that successor
+        Successor states must have a new list for each corner they find, otherwise the
+        search algorithm will terminate early as breadth first will find all corners
+        quickly, but not necessarily in one path. With a new list per successor this 
+        will ensure the corners are only removed when in a path as apposed to found
+        in general
         """
         x,y = state[0]
-        cornersLeft = state[1]
         successors = []
         for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
             dx, dy = Actions.directionToVector(action)
             nextx, nexty = int(x + dx), int(y + dy)
+            # For all actions that do not result in a wall
             if not self.walls[nextx][nexty]:
-                if (nextx, nexty) in self.corners and (nextx,nexty) not in cornersLeft:
-                    newCornersLeft = state[1] + [(nextx,nexty)]
-                    nextNodeState = ((nextx,nexty), newCornersLeft)
+                # If that action is also not already found, create a new list and pass that as a successor
+                if (nextx, nexty) in self.corners and (nextx,nexty) not in state[1]:
+                    newCornerFound = []
+                    for each in state[1]:
+                        newCornerFound.append(each)
+                    newCornerFound.append((nextx,nexty))
+                    nextNodeState = ((nextx,nexty), newCornerFound)
                     successors.append((nextNodeState,action,1))
+                # Otherwise, just return a normal successor
                 else:
                     successors.append((((nextx,nexty),state[1]),action,1))
         self._expanded += 1 # DO NOT CHANGE
@@ -346,27 +353,24 @@ class CornersProblem(search.SearchProblem):
 
 def cornersHeuristic(state, problem):
     """
-    A heuristic for the CornersProblem that you defined.
-
-      state:   The current search state
-               (a data structure you chose in your search problem)
-
-      problem: The CornersProblem instance for this layout.
-
-    This function should always return a number that is a lower bound on the
-    shortest path from the state to a goal of the problem; i.e.  it should be
-    admissible (as well as consistent).
+    A heuristic for found corners does not need to be found. As each node has its
+    own foundCorners list stored in state[1] we create a missing list by removing 
+    all found corners from the declared problem.corners. Then, using pacmans 
+    position, we iterate over missing until there is no longer any corners missing.
+    In order to calculate the closest corner we take the manhattan distance to each 
+    missing corner and sort by the smallest distance. After sorting, we remove it from 
+    the missing list and add its distance to the heuristic. 
     """
-    corners = problem.corners # These are the corner coordinates
-    found = list(state[1])
 
+    # Create missing list using everything in problem.corners except found corners
     missing = []
-    for x in corners:
-        if x not in found:
+    for x in problem.corners:
+        if x not in state[1]:
             missing.append(x)
 
     position = state[0]
     heuristic = 0
+    # Go through the list of missing corners from the position and add it to heuristic
     while missing:
         dist_from_corner = []
         for corner in missing:
@@ -442,31 +446,20 @@ class AStarFoodSearchAgent(SearchAgent):
 
 def foodHeuristic(state, problem):
     """
-    Your heuristic for the FoodSearchProblem goes here.
+    As the foods are listed in a grid, we iterate through every possible x,y coordinate
+    where food could be located. Once a coordinate is found that is in the foodGrid, we
+    then calculate the mazeDistance using the provided mazeDistance(point1, point2, gameState).
+    This is used instead of manhattan distance as manhattan distance will not provide an optimal
+    heuristic should a wall be in the way:
+    _________
+    |1       |
+    |        |  In this example, the manhattan distance to 1 (3+0) would be greater than the 
+    |        |  manhattan distance to 2 (2+0), however, the maze distance would be more accurate
+    |P       |  for these points: 1 (3), and 2 (16)
+    |_____   |
+    |2|   |  |
+    |___|____|
 
-    This heuristic must be consistent to ensure correctness.  First, try to come
-    up with an admissible heuristic; almost all admissible heuristics will be
-    consistent as well.
-
-    If using A* ever finds a solution that is worse uniform cost search finds,
-    your heuristic is *not* consistent, and probably not admissible!  On the
-    other hand, inadmissible or inconsistent heuristics may find optimal
-    solutions, so be careful.
-
-    The state is a tuple ( pacmanPosition, foodGrid ) where foodGrid is a Grid
-    (see game.py) of either True or False. You can call foodGrid.asList() to get
-    a list of food coordinates instead.
-
-    If you want access to info like walls, capsules, etc., you can query the
-    problem.  For example, problem.walls gives you a Grid of where the walls
-    are.
-
-    If you want to *store* information to be reused in other calls to the
-    heuristic, there is a dictionary called problem.heuristicInfo that you can
-    use. For example, if you only want to count the walls once and store that
-    value, try: problem.heuristicInfo['wallCount'] = problem.walls.count()
-    Subsequent calls to this heuristic can access
-    problem.heuristicInfo['wallCount']
     """
     pos, foodGrid = state
     dist = 0
@@ -476,6 +469,7 @@ def foodHeuristic(state, problem):
         for y in range(1,foodGrid.height):
             if (x,y) in foodGrid.asList():
                 tempDist = mazeDistance(pos, (x, y), problem.startingGameState)
+                # Returns maximum distance possible
                 if foodGrid[x][y] and tempDist > dist:
                     dist = tempDist
     return dist
@@ -501,6 +495,12 @@ class ClosestDotSearchAgent(SearchAgent):
         """
         Returns a path (a list of actions) to the closest dot, starting from
         gameState.
+        
+        Already have search algorithms implemented, only need to pass it the 
+        problem to solve (AnyFoodSearchProblem) with its game state. 
+        As noted in AnyFoodSearchProblem(PositionSearchProblem):
+        "You can use this search problem to help you fill in the findPathToClosestDot
+        method."
         """
         problem = AnyFoodSearchProblem(gameState)
         return search.astar(problem)
@@ -536,6 +536,8 @@ class AnyFoodSearchProblem(PositionSearchProblem):
         The state is Pacman's position. Fill this in with a goal test that will
         complete the problem definition.
         """
+        # Goal state is finding a food item so just check the boolean grid self.food
+        # if it returns true, you found food.
         return self.food[state[0]][state[1]]
 
 def mazeDistance(point1, point2, gameState):

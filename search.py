@@ -108,8 +108,6 @@ def depthFirstSearch(problem):
                     newDirList.append(dirr)
                 newDirList.append(dire)
                 fringe.push((coor,newDirList))
-                # appendDirection = direction + [dire]
-                # fringe.push((coor,appendDirection))
     return dirSet
 
 def breadthFirstSearch(problem):
@@ -132,8 +130,6 @@ def breadthFirstSearch(problem):
                     newDirList.append(dirr)
                 newDirList.append(dire)
                 fringe.push((coor,newDirList))
-                # appendDirection = direction + [dire]
-                # fringe.push((coor,appendDirection))
     return dirSet
 
 def uniformCostSearch(problem):
