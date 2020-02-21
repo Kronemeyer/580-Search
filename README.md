@@ -1,2 +1,0 @@
-# 580
-Artificial Intelligence
